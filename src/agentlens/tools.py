@@ -1,6 +1,78 @@
 """Executable functions that the harness can dispatch to."""
 
+import subprocess
+import sys
 from pathlib import Path
+
+
+def git_diff(cwd: str = ".") -> dict:
+    """Show tracked working-tree changes relative to HEAD, including staged edits.
+
+    Requires an existing commit. Untracked files are not included. A clean diff
+    has empty stdout; check exit_code first so Git errors aren't mistaken for it.
+    Disable external diff helpers and text converters to keep this a plain diff.
+    """
+    return run_command(
+        ["git", "--no-pager", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD", "--"],
+        cwd=cwd,
+    )
+
+
+def run_tests(cwd: str = ".", timeout: float = 30) -> dict:
+    """Run pytest discovery in cwd using this agent's Python environment.
+
+    Return stdout, stderr, and pytest's exit code. Zero means pytest passed;
+    code 5 means no tests were collected, which must not count as success.
+    Tests are executable code, so this tool is not an authorization boundary.
+    """
+    return run_command([sys.executable, "-m", "pytest", "-q"], cwd=cwd, timeout=timeout)
+
+
+def apply_patch(path: str, old_text: str, new_text: str) -> dict:
+    """Replace one exact text occurrence in an existing UTF-8 file.
+
+    This is a text-replacement patch, not unified-diff syntax. Empty, missing,
+    or ambiguous old text is rejected before writing. Include surrounding text
+    to disambiguate. Newlines outside the replacement are preserved.
+    """
+    if not old_text:
+        raise ValueError("old_text must not be empty")
+    file = Path(path)
+    original = file.read_bytes().decode("utf-8")
+    start = original.find(old_text)
+    if start == -1:
+        raise ValueError("old_text was not found; read the current file before editing")
+    if original.find(old_text, start + 1) != -1:
+        raise ValueError("old_text matches more than once; include more surrounding text")
+    updated = original[:start] + new_text + original[start + len(old_text):]
+    file.write_bytes(updated.encode("utf-8"))
+    return {"path": path, "changed": updated != original}
+
+
+def run_command(argv: list[str], cwd: str = ".", timeout: float = 10) -> dict:
+    """Execute an argument list without a shell and capture the process result.
+
+    Commands run with this process's permissions, not in a sandbox yet.
+    A nonzero exit code is returned as data. Launch errors and timeouts propagate
+    to the harness. The timeout applies to the direct child, not its descendants.
+    """
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+        raise ValueError("argv must be a nonempty list of strings")
+    completed = subprocess.run(
+        argv,
+        cwd=cwd,
+        timeout=timeout,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    return {
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+        "exit_code": completed.returncode,
+    }
 
 
 def list_files(path: str = ".") -> list[str]:

@@ -1,0 +1,8 @@
+# Only send the files the image needs to the Docker builder.
+**
+!Dockerfile
+!pyproject.toml
+!README.md
+!src/
+!src/agentlens/
+!src/agentlens/*.py
