@@ -27,8 +27,9 @@ def docker(argv: list[str], stdin: str | None = None) -> str:
 class DockerTools:
     """One disposable container per run. No host mounts or forwarded environment."""
 
-    def __init__(self) -> None:
+    def __init__(self, bug_demo: bool = False) -> None:
         self.name = f"agentlens-{uuid4().hex}"
+        self.bug_demo = bug_demo
 
     def __enter__(self):
         try:
@@ -41,7 +42,8 @@ class DockerTools:
                 "agentlens:learning", "python", "-c", "import time; time.sleep(1800)",
             ])
             docker(["exec", "--workdir", "/repo", self.name,
-                    "python", "-m", "agentlens.docker_tools", "setup"])
+                    "python", "-m", "agentlens.docker_tools", "setup",
+                    *( ["bug"] if self.bug_demo else [] )])
         except Exception:
             with suppress(RuntimeError):
                 self.__exit__(None, None, None)
@@ -69,14 +71,29 @@ class DockerTools:
         return {name: partial(self.call, name) for name in TOOL_NAMES}
 
 
-def setup_repo() -> None:
-    """Fixture setup, not a model action or the first bug-solving task."""
+def setup_repo(bug_demo: bool = False) -> None:
+    """Create the standard demo, or a reproducible discount bug exercise."""
     Path("greeting.txt").write_text("Hello, world!\n", encoding="utf-8")
     Path("arithmetic.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
     Path("test_arithmetic.py").write_text(
         "from arithmetic import add\n\ndef test_add():\n    assert add(2, 3) == 5\n",
         encoding="utf-8",
     )
+    if bug_demo:
+        Path("discount.py").write_text(
+            "def calculate_total(price, quantity, discount_percent):\n"
+            "    subtotal = price * quantity\n"
+            "    return subtotal - discount_percent\n",
+            encoding="utf-8",
+        )
+        Path("test_discount.py").write_text(
+            "from discount import calculate_total\n\n"
+            "def test_discount_is_a_percentage_of_subtotal():\n"
+            "    assert calculate_total(20, 3, 10) == 54\n\n"
+            "def test_zero_discount_keeps_subtotal():\n"
+            "    assert calculate_total(20, 3, 0) == 60\n",
+            encoding="utf-8",
+        )
     for argv in [
         ["git", "init", "--quiet"], ["git", "add", "."],
         ["git", "-c", "user.name=AgentLens Demo", "-c", "user.email=demo@example.invalid",
@@ -101,6 +118,6 @@ def worker() -> None:
 
 if __name__ == "__main__":
     if sys.argv[1] == "setup":
-        setup_repo()
+        setup_repo(bug_demo=len(sys.argv) > 2 and sys.argv[2] == "bug")
     elif sys.argv[1] == "worker":
         worker()

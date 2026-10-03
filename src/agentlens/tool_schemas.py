@@ -26,3 +26,15 @@ DOCKER_SCHEMAS = [
     schema("git_diff", "Show tracked changes against HEAD, staged and unstaged; excludes untracked files.",
            {"cwd": PATH}, ["cwd"]),
 ]
+
+REPOSITORY_READ_SCHEMAS = [
+    schema("list_files", "List sorted files immediately inside a repository directory.",
+           {"path": {"type": "string", "description": "Repository-relative directory."}},
+           ["path"]),
+    schema("read_file", "Read a UTF-8 repository file.",
+           {"path": {"type": "string", "description": "Repository-relative file path."}},
+           ["path"]),
+    schema("search_code", "Search Python files recursively for literal text.",
+           {"query": TEXT, "path": {"type": "string", "description": "Repository-relative directory."}},
+           ["query", "path"]),
+]

@@ -207,9 +207,35 @@ def run_demo(task, model) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run an AgentLens learning demonstration")
-    parser.add_argument("--demo", choices=["command", "patch", "tests", "diff", "live", "live-docker"], default="command")
+    parser.add_argument("--demo", choices=["command", "patch", "tests", "diff", "live", "live-docker", "bug", "evals"], default="command")
     args = parser.parse_args()
-    if args.demo == "live-docker":
+    if args.demo == "evals":
+        from agentlens.evals import REPOSITORY_EVALS, grade_repository_answer
+        from agentlens.tool_schemas import REPOSITORY_READ_SCHEMAS
+
+        tools = {"list_files": list_files, "read_file": read_file,
+                 "search_code": search_code}
+        results = []
+        for evaluation in REPOSITORY_EVALS:
+            trace = Trace()
+            try:
+                model = OpenRouterModel(trace, tool_schemas=REPOSITORY_READ_SCHEMAS)
+            except ValueError as error:
+                parser.error(str(error))
+            answer, _ = run_agent(
+                evaluation.question + " Answer from the repository files; request one "
+                "read-only tool at a time.",
+                model, tools, max_turns=8, trace=trace,
+                capability=Capability("repository_evaluator", "project", frozenset({"read"})),
+                resource="project",
+            )
+            grade = grade_repository_answer(evaluation, answer)
+            result = {"name": evaluation.name, **grade}
+            results.append(result)
+            print(json.dumps({**result, "answer": answer, "trace": str(trace.path)}, indent=2))
+        passed = sum(result["passed"] for result in results)
+        print(f"\nEval score: {passed}/{len(results)} passed")
+    elif args.demo in {"live-docker", "bug"}:
         from agentlens.docker_tools import DockerTools
         from agentlens.tool_schemas import DOCKER_SCHEMAS
 
@@ -219,14 +245,28 @@ def main() -> None:
             model = OpenRouterModel(trace, tool_schemas=DOCKER_SCHEMAS)
         except ValueError as error:
             parser.error(str(error))
-        with DockerTools() as environment:
+        with DockerTools(bug_demo=args.demo == "bug") as environment:
             trace.record("environment_ready", container=environment.name, cwd="/repo")
+            if args.demo == "bug":
+                baseline = environment.call("run_tests", cwd=".")
+                trace.record("baseline_tests", **baseline)
+                task = (
+                    "The test suite is failing in this disposable repository. Read the "
+                    "failing test and its traceback, then inspect the implementation. "
+                    "Fix the bug in discount.py without changing tests. Run the tests "
+                    "again and inspect the Git diff. Explain the cause and the fix. "
+                    "Request one tool at a time."
+                )
+            else:
+                task = (
+                    "You work in /repo inside a disposable Linux container. List the files, "
+                    "read greeting.txt, and replace 'Hello, world!' with 'Hello, agent!'. "
+                    "Find the add function using search_code. Use run_command to check Python's "
+                    "version, run the tests, and inspect the Git diff. Report the actual results. "
+                    "Request one tool at a time."
+                )
             answer, _ = run_agent(
-                "You work in /repo inside a disposable Linux container. List the files, "
-                "read greeting.txt, and replace 'Hello, world!' with 'Hello, agent!'. "
-                "Find the add function using search_code. Use run_command to check Python's "
-                "version, run the tests, and inspect the Git diff. Report the actual results. "
-            "Request one tool at a time.",
+                task,
                 model, environment.registry(), max_turns=16, trace=trace,
                 capability=Capability("coding_agent_demo", "/repo",
                                       frozenset({"read", "write", "execute"})),
@@ -238,6 +278,8 @@ def main() -> None:
                 "tests": environment.call("run_tests", cwd="."),
                 "diff": environment.call("git_diff", cwd="."),
             }
+            if args.demo == "bug":
+                checks["discount_source"] = environment.call("read_file", path="discount.py")
             trace.record("verification", **checks)
             print(f"\nFinal answer: {answer}")
             print("Independent verification:", json.dumps(checks, indent=2))

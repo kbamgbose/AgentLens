@@ -3,7 +3,7 @@
 A learning project: a small agent loop with explicit tools and JSONL traces.
 Scripted demos make the mechanics visible. A first live adapter also supports
 OpenRouter's `qwen/qwen3.7-flash`; the initial live exercise exposes only `read_file`
-for `pyproject.toml`. The live Docker exercise uses all seven tools in a disposable repo.
+for `pyproject.toml`. The live Docker exercises use all seven tools in a disposable repo.
 
 ## Additional concepts in our learning scope
 
@@ -61,8 +61,28 @@ or check branch constraints. Those limits are deliberate: this is a small workin
 example of authorization separate from tool availability, not a policy engine.
 Docker isolation and process permissions remain separate execution boundaries.
 
-Remaining work includes basic capabilities, 5–10 repository-understanding tasks with graders,
-and then the agent's first actual bug.
+The first five repository-understanding questions and their graders are in
+`src/agentlens/evals.py`. Each grader gives credit for required factual phrases
+and reports missing phrases. The patch-safety eval also rejects a known false
+claim that a tool exception ends the entire run, and asks what the loop does with
+the error. These transparent phrase checks are a starting point: they can miss
+correct paraphrases or mishandle negation and context. Tests verify the grading
+behavior, not whether a live model can answer the questions.
+
+Run the set from the repository root with:
+
+```sh
+.venv/bin/agentlens --demo evals
+```
+
+`--demo evals` selects the eval runner. It makes five separate model runs using
+only the read tools (`list_files`, `read_file`, and `search_code`), then prints
+each answer, its score, missing required facts, and trace path. These calls use
+your OpenRouter account and may incur a small charge. The capability limits
+actions to reading the project resource; it does not constrain individual paths.
+
+Remaining work includes growing and checking the repository-understanding eval
+set, then giving the agent its first actual bug.
 
 The cold test is unchanged: rebuild the core loop without looking at its
 implementation. The artifact remains a primitive but understandable coding agent.
@@ -335,11 +355,40 @@ The local executable's `--demo live-docker` selects host-side model calls with
 container-side tools. It starts a uniquely named container, prepares a small Git
 repository, and asks Qwen to inspect files, edit a greeting, search Python code,
 check Python's version, run tests, and inspect the diff. This is an integration
-exercise, not the first actual bug task or the repository-understanding eval suite.
+exercise, separate from the repository-understanding eval suite.
 It permits up to 16 model calls; model output can vary. All tool results are sent
 back to OpenRouter. The host independently reads the greeting and reruns tests and diff
 after the answer, recording a `verification` event. These checks are evidence to
 inspect, not a tamper-resistant grader: the agent can edit tests in this fixture.
+
+## First bug-solving exercise
+
+The `bug` demo reuses the isolated Docker harness with a separate disposable Git
+fixture. It intentionally starts with a failing percentage-discount test:
+`discount.py` subtracts the discount number as a flat amount, while the test expects
+it to be a percentage of the subtotal. Before the model acts, the host records the
+failing test result. The task asks Qwen to inspect the failing test and traceback,
+fix `discount.py` without editing tests, rerun tests, and inspect the diff. The host
+then records independent test, diff, and source checks. This is the first bug in a
+small exercise repository, not a bug planted in AgentLens itself.
+
+The change is in the host-side fixture setup and CLI, so rebuild the image once:
+
+```sh
+docker build -t agentlens:learning .
+```
+
+`build` creates the image; `-t agentlens:learning` tags it with the name used by
+`DockerTools`; `.` is the current repository directory sent as the Docker build
+context. Then run:
+
+```sh
+.venv/bin/agentlens --demo bug
+```
+
+The local executable's `--demo bug` selects the bug exercise. It uses your exported
+OpenRouter key on the host; the disposable container receives no key and has no
+network access. The run may incur model charges.
 
 The bridge starts Docker with `--detach` (background), `--name` (unique identifier),
 `--network none` (no external networking), `--read-only` (immutable image filesystem),
