@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from agentlens.loop import run_agent
+from agentlens.models import OpenRouterModel
 from agentlens.tools import (
     apply_patch,
     git_diff,
@@ -204,10 +205,60 @@ def run_demo(task, model) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run a scripted AgentLens demonstration")
-    parser.add_argument("--demo", choices=["command", "patch", "tests", "diff"], default="command")
+    parser = argparse.ArgumentParser(description="Run an AgentLens learning demonstration")
+    parser.add_argument("--demo", choices=["command", "patch", "tests", "diff", "live", "live-docker"], default="command")
     args = parser.parse_args()
-    if args.demo == "command":
+    if args.demo == "live-docker":
+        from agentlens.docker_tools import DockerTools
+        from agentlens.tool_schemas import DOCKER_SCHEMAS
+
+        trace = Trace()
+        print(f"Trace file: {trace.path}")
+        try:
+            model = OpenRouterModel(trace, tool_schemas=DOCKER_SCHEMAS)
+        except ValueError as error:
+            parser.error(str(error))
+        with DockerTools() as environment:
+            trace.record("environment_ready", container=environment.name, cwd="/repo")
+            answer, _ = run_agent(
+                "You work in /repo inside a disposable Linux container. List the files, "
+                "read greeting.txt, and replace 'Hello, world!' with 'Hello, agent!'. "
+                "Find the add function using search_code. Use run_command to check Python's "
+                "version, run the tests, and inspect the Git diff. Report the actual results. "
+                "Request one tool at a time.",
+                model, environment.registry(), max_turns=16, trace=trace,
+            )
+            # Inspect outcomes independently of the model's final claim.
+            checks = {
+                "greeting": environment.call("read_file", path="greeting.txt"),
+                "tests": environment.call("run_tests", cwd="."),
+                "diff": environment.call("git_diff", cwd="."),
+            }
+            trace.record("verification", **checks)
+            print(f"\nFinal answer: {answer}")
+            print("Independent verification:", json.dumps(checks, indent=2))
+        trace.record("environment_removed", container=environment.name)
+    elif args.demo == "live":
+        trace = Trace()
+        print(f"Trace file: {trace.path}")
+        try:
+            model = OpenRouterModel(trace)
+        except ValueError as error:
+            parser.error(str(error))
+
+        def read_project_file(path: str) -> str:
+            # An explicit restriction for this exercise, enforced in code too.
+            if path != "pyproject.toml":
+                raise PermissionError("This demo only permits reading pyproject.toml")
+            return read_file(path)
+
+        answer, _ = run_agent(
+            "Read pyproject.toml. What is the package name, required Python version, "
+            "and CLI entry point? Quote the relevant configuration lines.",
+            model, {"read_file": read_project_file}, max_turns=4, trace=trace,
+        )
+        print(f"\nFinal answer: {answer}")
+    elif args.demo == "command":
         run_demo("Show the current Python interpreter's version", scripted_command_model)
     elif args.demo == "diff":
         with TemporaryDirectory(prefix="agentlens-diff-") as directory:

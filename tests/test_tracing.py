@@ -1,4 +1,5 @@
 import json
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -9,6 +10,31 @@ from agentlens.tracing import Trace
 
 def read_events(trace):
     return [json.loads(line) for line in trace.path.read_text().splitlines()]
+
+
+def test_event_is_immutable_and_payload_is_an_independent_snapshot(tmp_path):
+    trace = Trace(str(tmp_path))
+    result = {"files": ["original.py"]}
+    event = trace.record("tool_result", result=result)
+    result["files"].append("later.py")
+    with pytest.raises(FrozenInstanceError):
+        event.event = "rewritten"
+    with pytest.raises(FrozenInstanceError):
+        event.data_json = "{}"
+    event.data["result"]["files"].append("copy-only.py")
+    exported = event.to_dict()
+    exported["data"]["result"]["files"].clear()
+    assert event.data == {"result": {"files": ["original.py"]}}
+    assert read_events(trace) == [event.to_dict()]
+
+
+def test_unserializable_payload_does_not_consume_sequence_number(tmp_path):
+    trace = Trace(str(tmp_path))
+    with pytest.raises(TypeError):
+        trace.record("invalid", value=object())
+    event = trace.record("valid", value=1)
+    assert event.sequence == 1
+    assert read_events(trace) == [event.to_dict()]
 
 
 def test_trace_preserves_interactions_and_history_snapshots(tmp_path):
