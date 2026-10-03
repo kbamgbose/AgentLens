@@ -7,6 +7,7 @@ from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from agentlens.capabilities import Capability
 from agentlens.loop import run_agent
 from agentlens.models import OpenRouterModel
 from agentlens.tools import (
@@ -225,8 +226,11 @@ def main() -> None:
                 "read greeting.txt, and replace 'Hello, world!' with 'Hello, agent!'. "
                 "Find the add function using search_code. Use run_command to check Python's "
                 "version, run the tests, and inspect the Git diff. Report the actual results. "
-                "Request one tool at a time.",
+            "Request one tool at a time.",
                 model, environment.registry(), max_turns=16, trace=trace,
+                capability=Capability("coding_agent_demo", "/repo",
+                                      frozenset({"read", "write", "execute"})),
+                resource="/repo",
             )
             # Inspect outcomes independently of the model's final claim.
             checks = {
@@ -256,6 +260,8 @@ def main() -> None:
             "Read pyproject.toml. What is the package name, required Python version, "
             "and CLI entry point? Quote the relevant configuration lines.",
             model, {"read_file": read_project_file}, max_turns=4, trace=trace,
+            capability=Capability("repository_assistant", "project", frozenset({"read"})),
+            resource="project",
         )
         print(f"\nFinal answer: {answer}")
     elif args.demo == "command":

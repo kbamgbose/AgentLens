@@ -1,6 +1,7 @@
 import pytest
 
 from agentlens import add, scripted_model
+from agentlens.capabilities import Capability
 from agentlens.loop import run_agent
 
 
@@ -29,3 +30,26 @@ def test_turn_limit_stops_repeated_requests():
     with pytest.raises(RuntimeError, match="exhausted"):
         run_agent("Keep adding", repeating_model, {"add": add}, max_turns=3)
     assert calls == [1, 3, 5]
+
+
+def test_capability_denies_tool_action_before_execution():
+    executed = []
+    def model(messages):
+        if messages[-1]["role"] == "user":
+            return {"type": "tool_call", "name": "apply_patch", "arguments": {}}
+        return {"type": "final", "text": messages[-1]["content"]["error"]}
+
+    capability = Capability("reader", "repo/project-x", frozenset({"read"}))
+    answer, history = run_agent(
+        "Edit", model, {"apply_patch": lambda: executed.append(True)}, max_turns=2,
+        capability=capability, resource="repo/project-x",
+    )
+    assert not executed
+    assert history[2]["content"]["ok"] is False
+    assert "does not permit write" in answer
+
+
+def test_capability_is_scoped_to_resource():
+    capability = Capability("reader", "repo/project-x", frozenset({"read"}))
+    assert capability.allows("read", "repo/project-x")
+    assert not capability.allows("read", "repo/other")

@@ -46,10 +46,20 @@ on this branch. Authorization concerns the specific action and resource before
 execution. A command tool can also write files, so an eventual check cannot rely
 only on whether a dedicated editing tool is registered.
 
-These are additions to our learning scope. We will work through them incrementally;
-do not build a sophisticated policy system now. The example capability is not
-currently enforced. Docker isolation and process permissions are the existing
-execution boundaries, not an implementation of this capability model.
+`Capability` in `src/agentlens/capabilities.py` is a frozen record containing an
+agent name, one resource name, and allowed actions. `run_agent` can receive a
+capability and a resource label; before invoking a registered tool, it checks the
+tool's action (`read`, `write`, or `execute`) against that resource. A denied call
+becomes a `PermissionError` result for the model, and the tool function is not run.
+The live demos provide capabilities explicitly. Calls that omit a capability keep
+the original unrestricted behavior so the introductory scripted examples remain
+small; therefore this is an opt-in check, not a complete security boundary.
+
+This first check uses a fixed tool-to-action table and exact resource-name matching.
+It does not inspect command contents, resolve filesystem paths against a resource,
+or check branch constraints. Those limits are deliberate: this is a small working
+example of authorization separate from tool availability, not a policy engine.
+Docker isolation and process permissions remain separate execution boundaries.
 
 Remaining work includes basic capabilities, 5–10 repository-understanding tasks with graders,
 and then the agent's first actual bug.

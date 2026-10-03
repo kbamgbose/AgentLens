@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from agentlens.capabilities import TOOL_ACTIONS, Capability
 from agentlens.tracing import Trace
 
 
@@ -12,6 +13,8 @@ def run_agent(
     tools: dict[str, Callable[..., Any]],
     max_turns: int = 10,
     trace: Trace | None = None,
+    capability: Capability | None = None,
+    resource: str = ".",
 ) -> tuple[str, list[dict]]:
     """Return the final answer and history; raise if the turn budget runs out.
 
@@ -52,6 +55,14 @@ def run_agent(
         name = response["name"]
         record("tool_request", turn=turn, name=name, arguments=response["arguments"])
         try:
+            action = TOOL_ACTIONS.get(name)
+            if capability is not None and (
+                action is None or not capability.allows(action, resource)
+            ):
+                raise PermissionError(
+                    f"Capability for {capability.agent} does not permit "
+                    f"{action or 'unknown'} on {resource}"
+                )
             result = {"ok": True, "value": tools[name](**response["arguments"])}
         except Exception as error:  # noqa: BLE001 -- tool failures become model feedback
             # Failed actions are feedback too: the model can try again.
