@@ -1,6 +1,6 @@
 # AgentLens
 
-A learning project: a small agent loop with explicit tools and JSONL traces.
+A small agent loop with explicit tools and JSONL traces.
 Scripted demos make the mechanics visible. A first live adapter also supports
 OpenRouter's `qwen/qwen3.7-flash`; the initial live exercise exposes only `read_file`
 for `pyproject.toml`. The live Docker exercises use all seven tools in a disposable repo.
