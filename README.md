@@ -77,12 +77,7 @@ Run the set from the repository root with:
 
 `--demo evals` selects the eval runner. It makes five separate model runs using
 only the read tools (`list_files`, `read_file`, and `search_code`), then prints
-each answer, its score, missing required facts, and trace path. These calls use
-your OpenRouter account and may incur a small charge. The capability limits
-actions to reading the project resource; it does not constrain individual paths.
-
-Remaining work includes growing and checking the repository-understanding eval
-set, then giving the agent its first actual bug.
+each answer, its score, missing required facts, and trace path. Remaining work includes growing and checking the repository-understanding eval set, then giving the agent its first actual bug.
 
 ## Run locally
 
