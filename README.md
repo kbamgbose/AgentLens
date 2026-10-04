@@ -146,9 +146,6 @@ Rebuild the image after changing source code; a previous image contains the old
 snapshot. Each new container starts from that snapshot. The initial image installs
 the application, pytest, and Git.
 
-The Python-version container demo was verified on September 30, 2026: the container
-exited with code 0 and its copied trace ended with `run_end`, status `finished`.
-
 ## First editing tool
 
 Read `src/agentlens/tools.py` (`apply_patch`), then `src/agentlens/__init__.py`
@@ -268,12 +265,6 @@ Multiple tool calls and truncated responses raise errors. Streaming is disabled,
 with a 4,096-token output limit per request and a 60-second socket timeout.
 The small `live` demo permits four model turns; `live-docker` permits sixteen.
 
-This replaces the free OpenRouter model. Qwen3.7 Flash is **paid**: OpenRouter lists
-$0.03 per million input tokens and $0.13 per million output tokens as checked
-October 3, 2026. Credit purchase fees may apply separately. Create an
-[OpenRouter key](https://openrouter.ai/settings/keys) and fund that account.
-Your old OpenRouter key will not work here.
-
 In zsh:
 
 ```sh
@@ -307,16 +298,8 @@ the run. Authentication and credit errors are not retried. Connection/read
 timeouts share the three-attempt budget; other URL errors are not retried.
 Only numeric provider codes and fixed error explanations are logged, not raw
 error bodies. An error inside an HTTP 200 response stops the run safely.
-The socket timeout is not a strict total response deadline. Retried model
-requests may incur charges, but completed tool actions are not replayed.
-Rerunning the Docker demo creates a new disposable repository.
+The socket timeout is not a strict total response deadline. 
 
-The model calls run on the host, so this provider switch does not require
-rebuilding the Docker image. The key stays on the host; tools run inside Docker.
-
-Sources: [model and pricing](https://openrouter.ai/qwen/qwen3.7-flash),
-[API quickstart](https://openrouter.ai/docs/quickstart),
-[error handling](https://openrouter.ai/docs/api/reference/errors-and-debugging).
 
 ## Live model with Docker tools
 
