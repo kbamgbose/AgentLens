@@ -84,9 +84,6 @@ actions to reading the project resource; it does not constrain individual paths.
 Remaining work includes growing and checking the repository-understanding eval
 set, then giving the agent its first actual bug.
 
-The cold test is unchanged: rebuild the core loop without looking at its
-implementation. The artifact remains a primitive but understandable coding agent.
-
 ## Run locally
 
 From the repository root, with the existing virtual environment:
